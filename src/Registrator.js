@@ -47,18 +47,23 @@ JsSIP.Registrator = function(ua, transport) {
 };
 
 JsSIP.Registrator.prototype = {
-  register: function() {
-    var request_sender, cause,
+  /**
+   * @param {Object} [options]
+   */
+  register: function(options) {
+    var request_sender, cause, extraHeaders,
       self = this;
 
-    this.request = new JsSIP.OutgoingRequest(JsSIP.c.REGISTER, this.registrar, this.ua, {
+    options = options || {};
+    extraHeaders = options.extraHeaders || [];
+    extraHeaders.push('Contact: '+ this.contact + ';expires=' + this.expires);
+    extraHeaders.push('Allow: '+ JsSIP.Utils.getAllowedMethods(this.ua));
+
+    this.request = new JsSIP.OutgoingRequest(JsSIP.C.REGISTER, this.registrar, this.ua, {
         'to_uri': this.from_uri,
         'call_id': this.call_id,
         'cseq': (this.cseq += 1)
-      }, [
-        'Contact: '+ this.contact + ';expires=' + this.expires,
-        'Allow: '+ JsSIP.utils.getAllowedMethods(this.ua)
-      ]);
+      }, extraHeaders);
 
     request_sender = new JsSIP.RequestSender(this, this.ua);
 
@@ -86,29 +91,25 @@ JsSIP.Registrator.prototype = {
           // Search the contact pointing to us and update the expires value
           //accordingly
           if (!contacts) {
-            console.log(JsSIP.c.LOG_REGISTRATOR +'No Contact header positive response to Register. Ignore response');
+            console.log(JsSIP.C.LOG_REGISTRATOR +'No Contact header positive response to Register. Ignore response');
             break;
           }
 
           while(contacts--) {
             contact = response.parseHeader('contact', contacts);
             if(contact.uri === this.ua.contact.uri) {
-              expires = contact.params.expires;
+              expires = contact.getParam('expires');
               break;
             }
           }
 
           if (!contact) {
-            console.log(JsSIP.c.LOG_REGISTRATOR +'No Contact header pointing to us. Ignore response');
+            console.log(JsSIP.C.LOG_REGISTRATOR +'No Contact header pointing to us. Ignore response');
             break;
           }
 
           if(!expires) {
             expires = this.expires;
-          } else if(expires < this.min_expires) {
-            // Set the expires value to min_expires in case it is slower
-            console.log(JsSIP.c.LOG_REGISTRATOR +'Received expires value: ' + expires + ' is smaller than the minimum expires time: ' + this.min_expires);
-            expires = this.min_expires;
           }
 
           // Re-Register before the expiration interval has elapsed.
@@ -118,11 +119,11 @@ JsSIP.Registrator.prototype = {
           }, (expires * 1000) - 3000);
 
           //Save gruu values
-          if (contact.params['temp-gruu']) {
-            this.ua.contact.temp_gruu = contact.params['temp-gruu'].replace(/"/g,'');
+          if (contact.hasParam('temp-gruu')) {
+            this.ua.contact.temp_gruu = contact.getParam('temp-gruu').replace(/"/g,'');
           }
-          if (contact.params['pub-gruu']) {
-            this.ua.contact.pub_gruu = contact.params['pub-gruu'].replace(/"/g,'');
+          if (contact.hasParam('pub-gruu')) {
+            this.ua.contact.pub_gruu = contact.getParam('pub-gruu').replace(/"/g,'');
           }
 
           this.registered = true;
@@ -139,19 +140,12 @@ JsSIP.Registrator.prototype = {
               self.register();
             }, this.expires * 1000);
           } else { //This response MUST contain a Min-Expires header field
-          console.log(JsSIP.c.LOG_REGISTRATOR +'423 response code received to a REGISTER without min-expires. Unregister');
-          this.registrationFailure(response, JsSIP.c.causes.SIP_FAILURE_CODE);
+          console.log(JsSIP.C.LOG_REGISTRATOR +'423 response code received to a REGISTER without min-expires. Unregister');
+          this.registrationFailure(response, JsSIP.C.causes.SIP_FAILURE_CODE);
           }
           break;
         default:
-          cause = JsSIP.utils.sipErrorCause(response.status_code);
-
-          if (cause) {
-            cause = JsSIP.c.causes[cause];
-          } else {
-            cause = JsSIP.c.causes.SIP_FAILURE_CODE;
-          }
-
+          cause = JsSIP.Utils.sipErrorCause(response.status_code);
           this.registrationFailure(response, cause);
       }
     };
@@ -160,55 +154,55 @@ JsSIP.Registrator.prototype = {
     * @private
     */
     this.onRequestTimeout = function() {
-      this.registrationFailure(null, JsSIP.c.causes.REQUEST_TIMEOUT);
+      this.registrationFailure(null, JsSIP.C.causes.REQUEST_TIMEOUT);
     };
 
     /**
     * @private
     */
     this.onTransportError = function() {
-      this.registrationFailure(null, JsSIP.c.causes.CONNECTION_ERROR);
+      this.registrationFailure(null, JsSIP.C.causes.CONNECTION_ERROR);
     };
 
     request_sender.send();
   },
 
   /**
-  * @param {Boolean} [all=false]
+  * @param {Object} [options]
   */
-  unregister: function(all) {
-    /* Parameters:
-    *
-    * - all: If true, then perform a "unregister all" action ("Contact: *");
-    */
+  unregister: function(options) {
+    var extraHeaders;
+
     if(!this.registered) {
-      console.log(JsSIP.c.LOG_REGISTRATOR +"Already unregistered");
+      console.log(JsSIP.C.LOG_REGISTRATOR +"Already unregistered");
       return;
     }
 
+    options = options || {};
+    extraHeaders = options.extraHeaders || [];
+
     this.registered = false;
-    this.ua.emit('unregistered');
 
     // Clear the registration timer.
     window.clearTimeout(this.registrationTimer);
 
-    if(all) {
-      this.request = new JsSIP.OutgoingRequest(JsSIP.c.REGISTER, this.registrar, this.ua, {
+    if(options.all) {
+      extraHeaders.push('Contact: *');
+      extraHeaders.push('Expires: 0');
+
+      this.request = new JsSIP.OutgoingRequest(JsSIP.C.REGISTER, this.registrar, this.ua, {
           'to_uri': this.from_uri,
           'call_id': this.call_id,
           'cseq': (this.cseq += 1)
-        }, [
-          'Contact: *',
-          'Expires : 0'
-        ]);
+        }, extraHeaders);
     } else {
-      this.request = new JsSIP.OutgoingRequest(JsSIP.c.REGISTER, this.registrar, this.ua, {
+      extraHeaders.push('Contact: '+ this.contact + ';expires=0');
+
+      this.request = new JsSIP.OutgoingRequest(JsSIP.C.REGISTER, this.registrar, this.ua, {
           'to_uri': this.from_uri,
           'call_id': this.call_id,
           'cseq': (this.cseq += 1)
-        }, [
-          'Contact: '+ this.contact + ';expires=0'
-        ]);
+        }, extraHeaders);
     }
 
     var request_sender = new JsSIP.RequestSender(this, this.ua);
@@ -217,21 +211,33 @@ JsSIP.Registrator.prototype = {
     * @private
     */
     this.receiveResponse = function(response) {
-      console.log(JsSIP.c.LOG_REGISTRATOR +response.status_code + ' ' + response.reason_phrase + ' received to unregister request');
+      var cause;
+
+      switch(true) {
+        case /^1[0-9]{2}$/.test(response.status_code):
+          // Ignore provisional responses.
+          break;
+        case /^2[0-9]{2}$/.test(response.status_code):
+          this.unregistered(response);
+          break;
+        default:
+          cause = JsSIP.Utils.sipErrorCause(response.status_code);
+          this.unregistered(response, cause);
+      }
     };
 
     /**
     * @private
     */
     this.onRequestTimeout = function() {
-      console.log(JsSIP.c.LOG_REGISTRATOR +'Request Timeout received for unregister request');
+      this.unregistered(null, JsSIP.C.causes.REQUEST_TIMEOUT);
     };
 
     /**
     * @private
     */
     this.onTransportError = function() {
-      console.log(JsSIP.c.LOG_REGISTRATOR +'Transport Error received for unregister request');
+      this.unregistered(null, JsSIP.C.causes.CONNECTION_ERROR);
     };
 
     request_sender.send();
@@ -241,13 +247,28 @@ JsSIP.Registrator.prototype = {
   * @private
   */
   registrationFailure: function(response, cause) {
-    if (this.registered) {
-      this.registered = false;
-      this.ua.emit('unregistered', this.ua);
-    }
     this.ua.emit('registrationFailed', this.ua, {
       response: response || null,
       cause: cause
+    });
+
+    if (this.registered) {
+      this.registered = false;
+      this.ua.emit('unregistered', this.ua, {
+        response: response || null,
+        cause: cause
+      });
+    }
+  },
+
+  /**
+   * @private
+   */
+  unregistered: function(response, cause) {
+    this.registered = false;
+    this.ua.emit('unregistered', this.ua, {
+      response: response || null,
+      cause: cause || null
     });
   },
 

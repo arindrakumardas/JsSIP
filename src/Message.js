@@ -18,15 +18,15 @@ JsSIP.Message = function(ua) {
 JsSIP.Message.prototype = new JsSIP.EventEmitter();
 
 
-JsSIP.Message.prototype.send = function(target, body, contentType, options) {
-  var request_sender, event, eventHandlers, extraHeaders,
+JsSIP.Message.prototype.send = function(target, body, options) {
+  var request_sender, event, contentType, eventHandlers, extraHeaders,
     events = [
       'sending',
       'succeeded',
       'failed'
     ];
 
-  JsSIP.utils.checkUAStatus(this.ua);
+  JsSIP.Utils.checkUAStatus(this.ua);
 
   this.initEvents(events);
 
@@ -34,6 +34,7 @@ JsSIP.Message.prototype.send = function(target, body, contentType, options) {
   options = options || {};
   extraHeaders = options.extraHeaders || [];
   eventHandlers = options.eventHandlers || {};
+  contentType = options.contentType || 'text/plain';
 
   // Set event handlers
   for (event in eventHandlers) {
@@ -41,22 +42,22 @@ JsSIP.Message.prototype.send = function(target, body, contentType, options) {
   }
 
   // Check target validity
-  target = JsSIP.utils.normalizeUri(target, this.ua.configuration.domain);
+  target = JsSIP.Utils.normalizeURI(target, this.ua.configuration.domain);
   if (!target) {
-    throw new JsSIP.exceptions.InvalidTargetError();
+    throw new JsSIP.Exceptions.InvalidTargetError();
   }
 
   // Message parameter initialization
   this.direction = 'outgoing';
-  this.local_identity = this.ua.configuration.user;
+  this.local_identity = this.ua.configuration.from_uri;
   this.remote_identity = target;
 
   this.closed = false;
   this.ua.applicants[this] = this;
 
-  extraHeaders.push('Content-Type: '+ (contentType ? contentType : 'text/plain'));
+  extraHeaders.push('Content-Type: '+ contentType);
 
-  this.request = new JsSIP.OutgoingRequest(JsSIP.c.MESSAGE, target, this.ua, null, extraHeaders);
+  this.request = new JsSIP.OutgoingRequest(JsSIP.C.MESSAGE, target, this.ua, null, extraHeaders);
 
   if(body) {
     this.request.body = body;
@@ -102,15 +103,7 @@ JsSIP.Message.prototype.receiveResponse = function(response) {
 
     default:
       delete this.ua.applicants[this];
-
-      cause = JsSIP.utils.sipErrorCause(response.status_code);
-
-      if (cause) {
-        cause = JsSIP.c.causes[cause];
-      } else {
-        cause = JsSIP.c.causes.SIP_FAILURE_CODE;
-      }
-
+      cause = JsSIP.Utils.sipErrorCause(response.status_code);
       this.emit('failed', this, {
         originator: 'remote',
         response: response,
@@ -130,7 +123,7 @@ JsSIP.Message.prototype.onRequestTimeout = function() {
   }
   this.emit('failed', this, {
     originator: 'system',
-    cause: JsSIP.c.causes.REQUEST_TIMEOUT
+    cause: JsSIP.C.causes.REQUEST_TIMEOUT
   });
 };
 
@@ -143,7 +136,7 @@ JsSIP.Message.prototype.onTransportError = function() {
   }
   this.emit('failed', this, {
     originator: 'system',
-    cause: JsSIP.c.causes.CONNECTION_ERROR
+    cause: JsSIP.C.causes.CONNECTION_ERROR
   });
 };
 
@@ -164,8 +157,8 @@ JsSIP.Message.prototype.init_incoming = function(request) {
 
   this.direction = 'incoming';
   this.request = request;
-  this.local_identity = request.s('to').uri;
-  this.remote_identity = request.s('from').uri;
+  this.local_identity = request.s('to').uri.toAor();
+  this.remote_identity = request.s('from').uri.toAor();
 
   if (contentType && (contentType.match(/^text\/plain(\s*;\s*.+)*$/i) || contentType.match(/^text\/html(\s*;\s*.+)*$/i))) {
     this.ua.emit('newMessage', this.ua, {
@@ -176,7 +169,7 @@ JsSIP.Message.prototype.init_incoming = function(request) {
 
     transaction = this.ua.transactions.nist[request.via_branch];
 
-    if (transaction && (transaction.state === JsSIP.c.TRANSACTION_TRYING || transaction.state === JsSIP.c.TRANSACTION_PROCEEDING)) {
+    if (transaction && (transaction.state === JsSIP.C.TRANSACTION_TRYING || transaction.state === JsSIP.C.TRANSACTION_PROCEEDING)) {
       request.reply(200);
     }
   } else {
@@ -190,7 +183,7 @@ JsSIP.Message.prototype.init_incoming = function(request) {
  */
 JsSIP.Message.prototype.accept = function() {
   if (this.direction !== 'incoming') {
-    throw new JsSIP.exceptions.InvalidMethodError();
+    throw new JsSIP.Exceptions.InvalidMethodError();
   }
 
   this.request.reply(200);
@@ -205,12 +198,12 @@ JsSIP.Message.prototype.accept = function() {
  */
 JsSIP.Message.prototype.reject = function(status_code, reason_phrase) {
   if (this.direction !== 'incoming') {
-    throw new JsSIP.exceptions.InvalidMethodError();
+    throw new JsSIP.Exceptions.InvalidMethodError();
   }
 
   if (status_code) {
     if ((status_code < 300 || status_code >= 700)) {
-      throw new JsSIP.exceptions.InvalidValueError();
+      throw new JsSIP.Exceptions.InvalidValueError();
     } else {
       this.request.reply(status_code, reason_phrase);
     }

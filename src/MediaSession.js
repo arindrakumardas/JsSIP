@@ -107,27 +107,35 @@ JsSIP.MediaSession.prototype = {
   * @param {Function} onSuccess Fired when there are no more ICE candidates
   */
   start: function(onSuccess) {
-    var
+    var idx, server, scheme, url,
       session = this,
       sent = false,
-      stun_uri = this.session.ua.configuration.stun_server,
-      turn_uri = this.session.ua.configuration.turn_uri,
-      turn_password = this.session.ua.configuration.turn_password,
-      servers = [ {"url": stun_uri} ];
+      servers = [];
 
-      if (turn_uri) {
-        servers.push({"url": turn_uri, "credential": turn_password});
-      }
+    for (idx in this.session.ua.configuration.stun_servers) {
+      server = this.session.ua.configuration.stun_servers[idx];
+      servers.push({'url': server});
+    }
+
+    for (idx in this.session.ua.configuration.turn_servers) {
+      server = this.session.ua.configuration.turn_servers[idx];
+      url = server.server;
+      scheme = url.substr(0, url.indexOf(':'));
+      servers.push({
+        'url': scheme + ':' + server.username + '@' + url.substr(scheme.length+1),
+        'credential': server.password
+      });
+    }
 
     this.peerConnection = new webkitRTCPeerConnection({"iceServers": servers});
 
     this.peerConnection.onicecandidate = function(event) {
       if (event.candidate) {
-        console.log(JsSIP.c.LOG_MEDIA_SESSION +'ICE candidate received: '+ event.candidate.candidate);
+        console.log(JsSIP.C.LOG_MEDIA_SESSION +'ICE candidate received: '+ event.candidate.candidate);
       } else {
-        console.info(JsSIP.c.LOG_MEDIA_SESSION +'No more ICE candidate');
-        console.log(JsSIP.c.LOG_MEDIA_SESSION +'Peerconnection status: '+ this.readyState);
-        console.log(JsSIP.c.LOG_MEDIA_SESSION +'Ice Status: '+ this.iceState);
+        console.info(JsSIP.C.LOG_MEDIA_SESSION +'No more ICE candidate');
+        console.log(JsSIP.C.LOG_MEDIA_SESSION +'Peerconnection status: '+ this.readyState);
+        console.log(JsSIP.C.LOG_MEDIA_SESSION +'Ice Status: '+ this.iceState);
         if (!sent) { // Execute onSuccess just once.
           sent = true;
           onSuccess();
@@ -136,7 +144,7 @@ JsSIP.MediaSession.prototype = {
     };
 
     this.peerConnection.onopen = function() {
-      console.log(JsSIP.c.LOG_MEDIA_SESSION +'Media session opened');
+      console.log(JsSIP.C.LOG_MEDIA_SESSION +'Media session opened');
     };
 
     this.peerConnection.onaddstream = function(mediaStreamEvent) {
@@ -148,7 +156,7 @@ JsSIP.MediaSession.prototype = {
     };
 
     this.peerConnection.onremovestream = function(stream) {
-      console.log(JsSIP.c.LOG_MEDIA_SESSION +'Stream removed: '+ stream);
+      console.log(JsSIP.C.LOG_MEDIA_SESSION +'Stream removed: '+ stream);
     };
 
     this.peerConnection.onstatechange = function() {
@@ -158,7 +166,7 @@ JsSIP.MediaSession.prototype = {
   },
 
   close: function() {
-    console.log(JsSIP.c.LOG_MEDIA_SESSION +'Closing peerConnection');
+    console.log(JsSIP.C.LOG_MEDIA_SESSION +'Closing peerConnection');
     if(this.peerConnection) {
       this.peerConnection.close();
 
@@ -177,7 +185,7 @@ JsSIP.MediaSession.prototype = {
     var self = this;
 
     function getSuccess(stream) {
-      console.log(JsSIP.c.LOG_MEDIA_SESSION +"Got stream " + stream);
+      console.log(JsSIP.C.LOG_MEDIA_SESSION +"Got stream " + stream);
 
       //Save the localMedia in order to revoke access to devices later.
       self.localMedia = stream;
@@ -195,7 +203,7 @@ JsSIP.MediaSession.prototype = {
     }
 
     // Get User Media
-    console.log(JsSIP.c.LOG_MEDIA_SESSION +"Requesting access to local media.");
+    console.log(JsSIP.C.LOG_MEDIA_SESSION +"Requesting access to local media.");
     navigator.webkitGetUserMedia(mediaType, getSuccess, getFailure);
 
   },
@@ -209,7 +217,7 @@ JsSIP.MediaSession.prototype = {
   */
   onMessage: function(type, sdp, onSuccess, onFailure) {
     if (type === 'offer') {
-      console.log(JsSIP.c.LOG_MEDIA_SESSION +'re-Invite received');
+      console.log(JsSIP.C.LOG_MEDIA_SESSION +'re-Invite received');
     } else if (type === 'answer') {
       this.peerConnection.setRemoteDescription(
         new window.RTCSessionDescription({type:'answer', sdp:sdp}), onSuccess, onFailure);
