@@ -1,5 +1,5 @@
 
-/*global webkitURL: false, webkitRTCPeerConnection: false*/
+/*global URL: false, RTCPeerConnection: false*/
 
 /**
  * @fileoverview SIP User Agent
@@ -127,7 +127,7 @@ JsSIP.MediaSession.prototype = {
       });
     }
 
-    this.peerConnection = new webkitRTCPeerConnection({"iceServers": servers});
+    this.peerConnection = new JsSIP.WebRTC.RTCPeerConnection({"iceServers": servers});
 
     this.peerConnection.onicecandidate = function(event) {
       if (event.candidate) {
@@ -151,7 +151,7 @@ JsSIP.MediaSession.prototype = {
       console.warn('stream added');
 
       if (session.remoteView && this.remoteStreams.length > 0) {
-        session.remoteView.src = webkitURL.createObjectURL(mediaStreamEvent.stream);
+        session.remoteView.src = window.URL.createObjectURL(mediaStreamEvent.stream);
       }
     };
 
@@ -192,7 +192,7 @@ JsSIP.MediaSession.prototype = {
 
       // Attach the stream to the view if it exists.
       if (self.selfView){
-        self.selfView.src = webkitURL.createObjectURL(stream);
+        self.selfView.src = window.URL.createObjectURL(stream);
       }
 
       onSuccess(stream);
@@ -204,7 +204,7 @@ JsSIP.MediaSession.prototype = {
 
     // Get User Media
     console.log(JsSIP.C.LOG_MEDIA_SESSION +"Requesting access to local media.");
-    navigator.webkitGetUserMedia(mediaTypes, getSuccess, getFailure);
+    JsSIP.WebRTC.getUserMedia(mediaTypes, getSuccess, getFailure);
 
   },
 

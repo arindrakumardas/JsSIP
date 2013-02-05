@@ -115,18 +115,18 @@ JsSIP.Utils= {
     return hname;
   },
 
-  isWebRtcSupported: (function() {
-    var supported = false;
-
-    try {
-      if (navigator.webkitGetUserMedia && window.webkitRTCPeerConnection) {
-        supported = true;
-      }
-    } catch(e) {
-    }
-
-    return function(){ return supported; };
-  }()),
+//   isWebRtcSupported: (function() {
+//     var supported = false;
+// 
+//     try {
+//       if (navigator.webkitGetUserMedia && window.webkitRTCPeerConnection) {
+//         supported = true;
+//       }
+//     } catch(e) {
+//     }
+// 
+//     return function(){ return supported; };
+//   }()),
 
   sipErrorCause: function(status_code) {
     var cause;
