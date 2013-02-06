@@ -31,13 +31,13 @@ JsSIP.Utils= {
     return UUID;
   },
 
-  createURI: function(uri) {
+  parseURI: function(uri) {
     if (!/^sip:/.test(uri)) {
       uri = JsSIP.C.SIP +':'+ uri;
     }
 
     if (uri.indexOf('@') === -1) {
-      console.log('Invalid uri. Missing uri domain.');
+      console.log(JsSIP.C.LOG_UTILS + 'Invalid URI. Missing URI domain.');
       return;
     }
 
@@ -66,31 +66,21 @@ JsSIP.Utils= {
   * @param {String} [domain]
   */
   normalizeURI: function(target, domain) {
-    var uri, parameter, string;
 
-    if (target) {
-      uri = JsSIP.grammar.parse(target, 'lazy_uri');
-
-      if (uri === -1) {
-        console.log('Invalid target: '+ target);
-        return;
+    if (!target) {
+      return;
+    } else if (target instanceof JsSIP.URI) {
+      return target;
+    } else if (typeof target === 'string') {
+      if (target.indexOf('@') === -1) {
+        if (domain) {
+          target += '@'+ domain;
+        } else {
+          return;
+        }
       }
 
-      if (!uri.host && !domain) {
-        console.log('No domain specified in target nor as function parameter');
-        return;
-      }
-
-      string = (uri.scheme || JsSIP.C.SIP) + ':';
-      string += uri.user;
-      string += '@' + (uri.host || domain);
-      string += (uri.port)? ':' + uri.port : '';
-
-      for (parameter in uri.params) {
-        string += ';'+ parameter;
-        string += (uri.params[parameter] === undefined)? '' : '='+ uri.params[parameter];
-      }
-      return string;
+      return  JsSIP.Utils.parseURI(target);
     }
   },
 
@@ -153,7 +143,7 @@ JsSIP.Utils= {
 
   checkUAStatus: function(ua) {
     if(ua.status !== JsSIP.C.UA_STATUS_READY) {
-      throw new JsSIP.Exceptions.NotReadyError();
+      throw new JsSIP.Exceptions.NotReadyError(ua.status, ua.error);
     }
   },
 

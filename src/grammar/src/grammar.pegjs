@@ -90,9 +90,21 @@ quoted_pair = "\\" ( [\x00-\x09] / [\x0B-\x0C] / [\x0E-\x7F] )
 // SIP URI
 //=======================
 
-SIP_URI         = uri_scheme ":"  userinfo ? hostport uri_parameters headers ? {
+SIP_URI_noparams  = uri_scheme ":"  userinfo ? hostport {
                     try {
                         data.uri = new JsSIP.URI(data.scheme, data.user, data.host, data.port);
+                        delete data.scheme;
+                        delete data.user;
+                        delete data.host;
+                        delete data.host_type;
+                        delete data.port;
+                      } catch(e) {
+                        data = -1;
+                      }}
+
+SIP_URI         = uri_scheme ":"  userinfo ? hostport uri_parameters headers ? {
+                    try {
+                        data.uri = new JsSIP.URI(data.scheme, data.user, data.host, data.port, data.uri_params);
                         delete data.scheme;
                         delete data.user;
                         delete data.host;
@@ -121,7 +133,8 @@ password        = ( unreserved / escaped / "&" / "=" / "+" / "$" / "," )* {
 hostport        = host ( ":" port )?
 
 host            = ( hostname / IPv4address / IPv6reference ) {
-                    data.host = input.substring(pos, offset).toLowerCase(); }
+                    data.host = input.substring(pos, offset).toLowerCase();
+                    return data.host; }
 
 hostname        = ( domainlabel "." )* toplabel  "." ? {
                   data.host_type = 'domain';
@@ -197,7 +210,7 @@ other_user        = token
 
 method_param      = "method="i method: Method {
                       if(!data.uri_params) data.uri_params={};
-                      data.uri_params['method'] = method.toLowerCase(); }
+                      data.uri_params['method'] = method; }
 
 ttl_param         = "ttl="i ttl: ttl {
                       if(!data.params) data.params={};
@@ -205,7 +218,7 @@ ttl_param         = "ttl="i ttl: ttl {
 
 maddr_param       = "maddr="i maddr: host {
                       if(!data.uri_params) data.uri_params={};
-                      data.uri_params['maddr'] = maddr.toLowerCase(); }
+                      data.uri_params['maddr'] = maddr; }
 
 lr_param          = lr: "lr"i {
                       if(!data.uri_params) data.uri_params={};
@@ -313,7 +326,8 @@ NOTIFYm           = "\x4E\x4F\x54\x49\x46\x59" // NOTIFY in caps
 
 Method            = ( INVITEm / ACKm / OPTIONSm / BYEm / CANCELm / REGISTERm
                     / SUBSCRIBEm / NOTIFYm / extension_method ){
-                    data.method = input.substring(pos, offset); }
+                    data.method = input.substring(pos, offset);
+                    return data.method; }
 
 extension_method  = token
 
@@ -357,9 +371,9 @@ Contact             = ( STAR / (contact_param (COMMA contact_param)*) ) {
 
 contact_param       = (addr_spec / name_addr) (SEMI contact_params)*
 
-name_addr           = ( display_name )? LAQUOT addr_spec RAQUOT
+name_addr           = ( display_name )? LAQUOT SIP_URI RAQUOT
 
-addr_spec           = SIP_URI / absoluteURI
+addr_spec           = SIP_URI_noparams
 
 display_name        = display_name: (token ( LWS token )* / quoted_string) {
                         display_name = input.substring(pos, offset).trim();
@@ -713,9 +727,10 @@ stun_scheme       = scheme: ("stuns"i / "stun"i) {
 stun_host_port    = stun_host ( ":" port )?
 
 stun_host         = host: (IPv4address / IPv6reference / reg_name) {
-                      data.host = host.join(''); }
+                      data.host = host; }
 
-reg_name          = ( stun_unreserved / escaped / sub_delims )*
+reg_name          = ( stun_unreserved / escaped / sub_delims )* {
+                      return input.substring(pos, offset); }
 
 stun_unreserved   = ALPHA / DIGIT / "-" / "." / "_" / "~"
 
@@ -731,11 +746,3 @@ turn_scheme       = scheme: ("turns"i / "turn"i) {
 
 turn_transport    = transport ("udp"i / "tcp"i / unreserved*) {
                       data.transport = transport; }
-
-
-// Lazy uri
-
-lazy_uri  = (uri_scheme ':')? user (':' password)? ('@' hostport)? {
-            if (data.password) {
-              data.user = data.user +':'+ data.password;
-            }}
