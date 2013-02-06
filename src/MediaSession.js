@@ -82,7 +82,7 @@ JsSIP.MediaSession.prototype = {
       self.peerConnection.addStream(stream);
 
       self.peerConnection.setRemoteDescription(
-        new window.RTCSessionDescription({type:'offer', sdp:sdp}),
+        new JsSIP.WebRTC.RTCSessionDescription({type:'offer', sdp:sdp}),
         function() {
           self.peerConnection.createAnswer(
             function(sessionDescription){
@@ -220,7 +220,7 @@ JsSIP.MediaSession.prototype = {
       console.log(JsSIP.C.LOG_MEDIA_SESSION +'re-Invite received');
     } else if (type === 'answer') {
       this.peerConnection.setRemoteDescription(
-        new window.RTCSessionDescription({type:'answer', sdp:sdp}), onSuccess, onFailure);
+        new JsSIP.WebRTC.RTCSessionDescription({type:'answer', sdp:sdp}), onSuccess, onFailure);
     }
   }
 };
